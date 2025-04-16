@@ -1,6 +1,8 @@
 package widgets
 
 import (
+	"flag"
+	"fmt"
 	"image"
 	"image/color"
 	"math"
@@ -11,6 +13,12 @@ import (
 	"gioui.org/unit"
 	"golang.org/x/image/math/fixed"
 )
+
+var fontFace string
+
+func init() {
+	flag.StringVar(&fontFace, "font", "Menlo", "Default font")
+}
 
 type UIColors struct {
 	TextColor color.NRGBA
@@ -52,7 +60,7 @@ func DefaultStyle(shaper *text.Shaper) Style {
 	return Style{
 		Shaper:       shaper,
 		TextSize:     20,
-		Typeface:     "Menlo, monospace",
+		Typeface:     font.Typeface(fmt.Sprintf("\"%s\", monospace", fontFace)),
 		PanelPadding: unit.Dp(2),
 		OutlineWidth: unit.Dp(2),
 		UI: UIColors{
