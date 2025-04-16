@@ -168,19 +168,17 @@ local function pollEvent(ws, eventHandler)
     expect(1, ws, "table")
     expect(2, eventHandler, "table")
 
-    while true do
-        local rawPacket = ws.receive()
-        if rawPacket == nil then
-            error("websocket closed", 2)
-        end
-
-        packet = textutils.unserializeJSON(rawPacket)
-        dispatchEvent(
-                eventHandler,
-                field(packet, "name", "string"),
-                field(packet, "payload", "table")
-        )
+    local rawPacket = ws.receive()
+    if rawPacket == nil then
+        error("websocket closed", 2)
     end
+
+    packet = textutils.unserializeJSON(rawPacket)
+    dispatchEvent(
+            eventHandler,
+            field(packet, "name", "string"),
+            field(packet, "payload", "table")
+    )
 end
 
 -- end packet_io
@@ -214,11 +212,32 @@ local function ccrRedirect(ws, name)
         foregroundColor = colors.white,
         backgroundColor = colors.black,
         palette = nativePalette(),
+        packetQueue = {},
+        maxQueueSize = 255,
+        lastSendTime = 0,
+        maxSendWaitMs = 10
     }
+
+    function ccr.sendPacketQueue()
+    --    Called in a loop
+        -- Send packet queue when full or after a small amount of time
+        local now = os.epoch("utc")
+        if (now - ccr.lastSendTime) > ccr.maxSendWaitMs or (#ccr.packetQueue >= ccr.maxQueueSize) then
+            ccr.lastSendTime = now
+
+            for _, p in ipairs(ccr.packetQueue) do
+                sendMessage(ws, p)
+            end
+
+            ccr.packetQueue = {}
+        end
+
+    end
 
     ---@param packet Packet
     local function send(packet)
-        sendMessage(ws, packet)
+        table.insert(ccr.packetQueue, packet)
+        --sendMessage(ws, packet)
     end
 
     send(mkMessage.SetConsoleName(name))
@@ -243,35 +262,44 @@ local function ccrRedirect(ws, name)
         updateCursor(text)
         send(mkMessage.Write(text))
     end
+
     function ccr.scroll(y)
         expect(1, y, "number")
         send(mkMessage.Scroll(round(y)))
     end
+
     function ccr.getCursorPos()
         return ccr.cursorX, ccr.cursorY
     end
+
     function ccr.setCursorPos(x, y)
         ccr.cursorX = round(x)
         ccr.cursorY = round(y)
         send(mkMessage.SetCursorPosition(ccr.cursorX-1, ccr.cursorY-1))
     end
+
     function ccr.getCursorBlink()
         return ccr.cursorBlink
     end
+
     function ccr.setCursorBlink(blink)
         expect(1, blink, "boolean")
         ccr.cursorBlink = blink == true
         send(mkMessage.SetCursorBlink(ccr.cursorBlink))
     end
+
     function ccr.getSize()
         return ccr.sizeX, ccr.sizeY
     end
+
     function ccr.clear()
         send(mkMessage.Clear())
     end
+
     function ccr.clearLine()
         send(mkMessage.ClearLine())
     end
+
     function ccr.getTextColor()
         return ccr.foregroundColor
     end
@@ -387,7 +415,15 @@ local function main(host)
                 shell.run("shell")
             end,
             function()
-                pollEvent(ws, redirect)
+                while true do
+                    pollEvent(ws, redirect)
+                end
+            end,
+            function()
+                while true do
+                    os.sleep(0.05)
+                    redirect.sendPacketQueue()
+                end
             end
     )
     term.redirect(originalRedirect)
