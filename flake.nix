@@ -4,6 +4,10 @@
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     flake-utils.url = "github:numtide/flake-utils";
+    ccemux-launcher-nix = {
+      url = "github:superb-eddie/ccemux-launcher-nix/11eed4b442c22f6914fb9135734bcf846e04138c";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
 #   TODO: Can we inject the absolute path of the repo into build artifacts? More scripts could live in nix land
@@ -12,22 +16,15 @@
     { self
     , nixpkgs
     , flake-utils
+    , ccemux-launcher-nix
     ,
     }:
-    let
-      ccemux-launcher-jar = builtins.fetchurl {
-        url = "https://emux.cc/ccemux-launcher.jar";
-        sha256 = "65bed2736bfc1bd8b786586d14d76c3772173b461294e6354bc0c140ac0dd3b5";
-      };
-    in
     flake-utils.lib.eachDefaultSystem (
       system:
       let
         lib = nixpkgs.lib;
         pkgs = nixpkgs.legacyPackages.${system};
-        ccemux-launcher = pkgs.writeShellScriptBin "ccemux-launcher" ''
-          exec ${pkgs.jre}/bin/java -jar ${ccemux-launcher-jar} "$@"
-        '';
+        ccemux-launcher = ccemux-launcher-nix.packages.${system}.default;
 
         ccr = pkgs.buildGoModule {
           pname = "ccr";
@@ -35,7 +32,7 @@
 
           subPackages = [ "ccr/cmd/ccr" ];
           src = ./.;
-          vendorHash = "sha256-VZHZtxZTS9wI8ECwsu5ZNe7ZPMDL7sgg91qHgd0czGg=";
+          vendorHash = "sha256-XSNGTnHNuq7uvSDnwFKcs5b/Tjk+grr8MoV8uwYqXzo=";
 #          vendorHash = lib.fakeHash;
 
           meta = {

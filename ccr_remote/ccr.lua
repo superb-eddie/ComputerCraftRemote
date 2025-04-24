@@ -84,40 +84,6 @@ local mkMessage = (function()
     return mkFunctions
 end)()
 
-local eventTypes = {
-    {"resize", {{"width", "number"},
-                {"height", "number"}}},
-    {"key-down", {{"key", "number"},
-                  {"held", "boolean"},
-                  {"char", "string"}}},
-    {"key-up", {{"key", "number"}}},
-    {"clipboard", {{"text", "string"}}},
-    {"terminate"}
-}
-
-local dispatchEvent = (function()
-    local dispatchFunctions = {}
-    iterTypeDesc(eventTypes, function(name, fieldIter)
-        local eventName = ("%s-event"):format(name)
-        local handlerName = kebabToCamelCase(eventName)
-        dispatchFunctions[eventName] = function(handler, payload)
-            local args = {}
-            fieldIter(function(i, fieldName, fieldType)
-                table.insert(args, field(payload, fieldName, fieldType))
-            end)
-
-            field(handler, handlerName, "function")(table.unpack(args))
-        end
-    end)
-
-    return function(handler, name, payload)
-        local dispatch = dispatchFunctions[name]
-        if dispatch ~= nil then
-            dispatch(handler, payload)
-        end
-    end
-end)()
-
 -- end packets
 
 -- begin packet_io
@@ -163,10 +129,10 @@ local function sendMessage(ws, packet)
 end
 
 ---@param ws Websocket
----@param eventHandler table<string, function>
-local function pollEvent(ws, eventHandler)
+---@param redirect table
+local function pollEvent(ws, redirect)
     expect(1, ws, "table")
-    expect(2, eventHandler, "table")
+    expect(2, redirect, "table")
 
     local rawPacket = ws.receive()
     if rawPacket == nil then
@@ -174,11 +140,47 @@ local function pollEvent(ws, eventHandler)
     end
 
     packet = textutils.unserializeJSON(rawPacket)
-    dispatchEvent(
-            eventHandler,
-            field(packet, "name", "string"),
-            field(packet, "payload", "table")
-    )
+
+    local name = field(packet, "name", "string")
+    local payload = field(packet, "payload", "table")
+    if name == "cc-event-bundle" then
+        local events = field(payload, "events", "table")
+        for _,e in ipairs(events) do
+            local eventName = field(e, "name", "string")
+            local eventArgs = field(e, "args", "table", "nil")
+            if eventArgs == nil then
+                eventArgs = {}
+            end
+
+            local typedArgs = {}
+            if (eventName == "char") then
+                typedArgs = eventArgs
+            else
+                for _,v in ipairs(eventArgs) do
+                    local tv
+                    if (v == "true") or (v == "false") then
+                        tv = (v == "true")
+                    elseif v:match("^[0-9]+\.?[0-9]*$") then
+                        tv = tonumber(v, 10)
+                    else
+                        tv = v
+                    end
+
+                    table.insert(typedArgs, tv)
+                end
+            end
+
+            if eventName == "term_resize" then
+                local width, height = table.unpack(typedArgs)
+                redirect.sizeX = width
+                redirect.sizeY = height
+            elseif eventName == "terminate" then
+            --    TODO: Deliver this only to the shell
+            end
+
+            os.queueEvent(eventName, table.unpack(typedArgs))
+        end
+    end
 end
 
 -- end packet_io
@@ -199,6 +201,8 @@ local function nativePalette()
     for _, color in ipairs(allColors) do
         palette[color] = table.pack(term.nativePaletteColor(color))
     end
+
+    return palette
 end
 
 ---@param ws Websocket
@@ -213,9 +217,9 @@ local function ccrRedirect(ws, name)
         backgroundColor = colors.black,
         palette = nativePalette(),
         packetQueue = {},
-        maxQueueSize = 255,
+        maxQueueSize = 500,
         lastSendTime = 0,
-        maxSendWaitMs = 10
+        maxSendWaitMs = 20
     }
 
     function ccr.sendPacketQueue()
@@ -237,7 +241,6 @@ local function ccrRedirect(ws, name)
     ---@param packet Packet
     local function send(packet)
         table.insert(ccr.packetQueue, packet)
-        --sendMessage(ws, packet)
     end
 
     send(mkMessage.SetConsoleName(name))
@@ -346,11 +349,17 @@ local function ccrRedirect(ws, name)
     function ccr.setPaletteColor(index, r, g, b)
         expect(1, index, "number")
         expect(2, r, "number")
-        expect(3, g, "number")
-        expect(4, b, "number")
-        local r, g, b = tonumber(r), tonumber(g), tonumber(b)
+        expect(3, g, "number", "nil")
+        expect(4, b, "number", "nil")
+
+        if (g ~= nil) and (b ~= nil) then
+            r, g, b = tonumber(r), tonumber(g), tonumber(b)
+        else
+            r, g, b = colors.unpackRGB(tonumber(r))
+        end
+
         ccr.palette[index] = table.pack(r, g, b)
-        send(mkSetPaletteColor(index, r, g, b))
+        send(mkMessage.SetPaletteColor(index, r, g, b))
     end
     ccr.setPaletteColour = ccr.setPaletteColor
 
@@ -358,39 +367,9 @@ local function ccrRedirect(ws, name)
         expect(1, color, "number")
         return table.unpack(ccr.palette[color])
     end
-    ccr.getPaletteColour = ccr.setPaletteColor
+    ccr.getPaletteColour = ccr.getPaletteColor
 
     --- end Redirect
-
-    --- begin EventHandler
-
-    function ccr.ResizeEvent(width, height)
-        ccr.sizeX = width
-        ccr.sizeY = height
-        os.queueEvent("term_resize")
-    end
-
-    function ccr.KeyDownEvent(key, held, char)
-        os.queueEvent("key", key, held)
-        if (not held) and (char ~= "") then
-            os.queueEvent("char", char)
-        end
-    end
-
-    function ccr.KeyUpEvent(key)
-        os.queueEvent("key_up", key)
-    end
-
-    function ccr.ClipboardEvent(text)
-        os.queueEvent("paste", text)
-    end
-
-    function ccr.TerminateEvent()
-        -- TODO: Deliver this only to the shell we're running
-        os.queueEvent("terminate")
-    end
-
-    --- end EventHandler
 
     return ccr
 end

@@ -32,7 +32,7 @@ func (r *remoteTab) DisplayName() string {
 }
 
 func (r *remoteTab) Layout(gtx layout.Context) layout.Dimensions {
-	var events []console.Event
+	var events []console.CCEvent
 	var dimensions layout.Dimensions
 	r.rm.WithRemoteConsole(r.id, func(conn *console.Console) {
 		if conn == nil {
@@ -45,8 +45,10 @@ func (r *remoteTab) Layout(gtx layout.Context) layout.Dimensions {
 		events = conn.Update(gtx, r.style)
 		dimensions = conn.Layout(gtx, r.style)
 	})
-	for _, e := range events {
-		r.rm.QueuePacket(r.id, e)
+	if len(events) > 0 {
+		r.rm.QueuePacket(r.id, CCEventBundle{
+			Events: events,
+		})
 	}
 	return dimensions
 }

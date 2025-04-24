@@ -190,30 +190,18 @@ func HandlePacket(buf []byte, handler MessageHandler) error {
 //end
 
 //begin: remote packets
-//TODO: Rewrite these events into one message that gets passed through to os.queueEvent (don't forget an event whitelist)
 
-const resizeEventName = "resize-event"
+const ccEventBundleName = "cc-event-bundle"
 
-const keyDownEventName = "key-down-event"
-
-const keyUpEventName = "key-up-event"
-
-const clipboardEventName = "clipboard-event"
-
-const terminateEventName = "terminate-event"
+type CCEventBundle struct {
+	Events []console.CCEvent `json:"events"`
+}
 
 func getRemotePayloadName(payload any) string {
 	switch payload.(type) {
-	case console.ResizedEvent:
-		return resizeEventName
-	case console.KeyDownEvent:
-		return keyDownEventName
-	case console.KeyUpEvent:
-		return keyUpEventName
-	case console.ClipboardEvent:
-		return clipboardEventName
-	case console.TerminateEvent:
-		return terminateEventName
+	case CCEventBundle:
+		return ccEventBundleName
+
 	}
 	panic("unknown remote payload type")
 }

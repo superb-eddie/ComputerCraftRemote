@@ -16,20 +16,28 @@ func isPrintableChar(char rune) bool {
 // The characters that cc's charset borrows from codepage 437 in the order they appear in cc
 var cp437 = []rune{' ', '☺', '☻', '♥', '♦', '♣', '♠', '•', '◘', ' ', ' ', '♂', '♀', ' ', '♪', '♫', '►', '◄', '↕', '‼', '¶', '§', '▬', '↨', '↑', '↓', '→', '←', '∟', '↔', '▲', '▼'}
 
+// fromCCCharset maps Computer Craft's character set to Unicode
 func fromCCCharset(char rune) rune {
 	if !isPrintableChar(char) {
 		return '�'
 	}
 
-	// Computer craft's charset borrow from a couple different places
 	if char == 0x7F {
 		return '░'
 	}
 
-	isSpecial := char == '\t' || char == '\n' || char == '\r'
+	// These don't get rendered
+	if char == '\t' || char == '\n' || char == '\r' {
+		return ' '
+	}
+
 	isAscii := (char >= 0x20) && (char <= 0x7F)
 	isLatin1 := (char >= 0xA0) && (char <= 0xFF)
-	if isSpecial || isAscii || isLatin1 {
+	if isAscii || isLatin1 {
+		if char == 0xAD {
+			// Replace soft-hyphen with something that'll be rendered
+			return '-'
+		}
 		return char
 	}
 
@@ -42,9 +50,13 @@ func fromCCCharset(char rune) rune {
 	// characters borrow from teletext
 	isTeletext := (char >= 0x80) && (char <= 0x9f)
 	if isTeletext {
-		// Block Sextant-1
+		// A portion of sextant blocks, offset by one
 		// https://www.unicode.org/charts/PDF/U1FB00.pdf
-		return '\U0001FB00' + (char - 0x80)
+		if char == 0x80 {
+			// Fill hole left from offset
+			return ' '
+		}
+		return '\U0001FB00' + ((char - 1) - 0x80)
 	}
 
 	return '�'

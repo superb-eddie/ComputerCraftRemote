@@ -24,17 +24,14 @@ func (c *Console) FocusTag() event.Tag {
 	return c
 }
 
-func (c *Console) Update(gtx layout.Context, style *widgets.Style) (events []Event) {
+func (c *Console) Update(gtx layout.Context, style *widgets.Style) (events []CCEvent) {
 	c.glyphSize = style.MeasureGlyph(gtx, 'A') // Measure any old character, this font should be monospaced
 	var rowColSize image.Point
 	rowColSize, c.screenSize = calcScreenSize(gtx.Constraints, c.glyphSize)
 
 	if c.buffer.size() != rowColSize {
 		c.buffer.resize(rowColSize)
-		events = append(events, ResizedEvent{
-			Width:  rowColSize.X,
-			Height: rowColSize.Y,
-		})
+		events = append(events, mkTermResize(rowColSize.X, rowColSize.Y))
 	}
 
 	if !gtx.Focused(c.FocusTag()) {
@@ -66,9 +63,7 @@ func (c *Console) Update(gtx layout.Context, style *widgets.Style) (events []Eve
 		switch e := e.(type) {
 		case transfer.DataEvent:
 			raw, _ := io.ReadAll(e.Open())
-			events = append(events, ClipboardEvent{
-				Text: string(raw),
-			})
+			events = append(events, mkPaste(string(raw)))
 		case key.Event:
 			keycode, char, ok := translateKey(e.Name, e.Modifiers)
 			if !ok {
@@ -89,21 +84,19 @@ func (c *Console) Update(gtx layout.Context, style *widgets.Style) (events []Eve
 				}
 
 				if held && e.Name == "T" && (e.Modifiers.Contain(key.ModCommand) || e.Modifiers.Contain(key.ModCtrl)) {
-					events = append(events, TerminateEvent{})
+					events = append(events, mkTerminate())
 					continue
 				}
 
-				events = append(events, KeyDownEvent{
-					Key:  keycode,
-					Char: char,
-					Held: held,
-				})
+				events = append(events, mkKeyDownEvent(keycode, held))
+
+				if char != "" {
+					events = append(events, mkCharEvent(char))
+				}
 
 			} else {
 				delete(c.heldKeys, e.Name)
-				events = append(events, KeyUpEvent{
-					Key: keycode,
-				})
+				events = append(events, mkKeyUpEvent(keycode))
 			}
 
 		}

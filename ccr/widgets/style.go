@@ -17,7 +17,7 @@ import (
 var fontFace string
 
 func init() {
-	flag.StringVar(&fontFace, "font", "Menlo", "Default font")
+	flag.StringVar(&fontFace, "font", "Fairfax SM HD", "Default font")
 }
 
 type UIColors struct {
@@ -57,6 +57,8 @@ type Style struct {
 }
 
 func DefaultStyle(shaper *text.Shaper) Style {
+	// Choose a single font from the Typeface
+
 	return Style{
 		Shaper:       shaper,
 		TextSize:     20,
