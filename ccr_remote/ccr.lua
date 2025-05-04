@@ -8,12 +8,12 @@ local ccrConfig = {
     bufferSize = {
         description = "How many messages to buffer before flushing to server",
         type = "number",
-        default = 500,
+        default = 255,
     },
     bufferFlushPeriod = {
         description = "Time in milliseconds to wait before sending message buffer, regardless of how many messages are queued.",
         type = "number",
-        default = 20,
+        default = 5,
     },
 }
 
@@ -432,7 +432,6 @@ local function main(host)
             end,
             function()
                 while true do
-                    os.sleep(0.05)
                     pollEvent(ws, redirect)
                 end
             end,
