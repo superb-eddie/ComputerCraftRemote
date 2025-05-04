@@ -68,14 +68,16 @@ type remote struct {
 
 // Manager "owns" all the consoles, and is the intermediary between the UI and conn goroutines
 type Manager struct {
-	living map[RemoteId]*remote
-	debug  bool
+	living              map[RemoteId]*remote
+	debug               bool
+	invertColorsDefault bool
 }
 
-func NewManager(debug bool) *Manager {
+func NewManager(debug, invertColorsDefault bool) *Manager {
 	return &Manager{
-		living: map[RemoteId]*remote{},
-		debug:  debug,
+		living:              map[RemoteId]*remote{},
+		debug:               debug,
+		invertColorsDefault: invertColorsDefault,
 	}
 }
 
@@ -86,7 +88,7 @@ func (m *Manager) NewRemote(conn *websocket.Conn) RemoteId {
 	id := newRemoteId()
 	m.living[id] = &remote{
 		conn:    conn,
-		console: console.NewConsole(name),
+		console: console.NewConsole(name, m.invertColorsDefault),
 	}
 	return id
 }

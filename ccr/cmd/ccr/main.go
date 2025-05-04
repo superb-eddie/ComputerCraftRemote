@@ -24,17 +24,19 @@ import (
 )
 
 var debug bool
+var invertColors bool
+var listen string
 
 func init() {
 	flag.BoolVar(&debug, "debug", false, "Print debug messages")
+	flag.BoolVar(&invertColors, "invert-colors", false, "invert palette colors")
+	flag.StringVar(&listen, "listen", ":338", "ip:port to listen on")
 	flag.Parse()
 }
 
 func main() {
-	addr := ":338"
-
 	go func() {
-		err := windowMain(new(app.Window), addr)
+		err := windowMain(new(app.Window))
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -44,11 +46,11 @@ func main() {
 	app.Main()
 }
 
-func windowMain(window *app.Window, address string) error {
-	remoteManager := remotes.NewManager(debug)
+func windowMain(window *app.Window) error {
+	remoteManager := remotes.NewManager(debug, invertColors)
 
 	wg := sync.WaitGroup{}
-	srv := runRemoteListener(&wg, address, window, remoteManager)
+	srv := runRemoteListener(&wg, window, remoteManager)
 	defer func() {
 		// Graceful shutdown of http server
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
@@ -59,14 +61,14 @@ func windowMain(window *app.Window, address string) error {
 		wg.Wait()
 	}()
 
-	return runUI(window, address, remoteManager)
+	return runUI(window, remoteManager)
 }
 
-func runUI(window *app.Window, listeningOn string, rm *remotes.Manager) error {
+func runUI(window *app.Window, rm *remotes.Manager) error {
 	shaper := &text.Shaper{}
 	style := widgets.DefaultStyle(shaper)
 
-	consoleGroup := ccr.NewConsoleGroupWidget(listeningOn)
+	consoleGroup := ccr.NewConsoleGroupWidget(listen)
 
 	var ops op.Ops
 	for {
@@ -86,8 +88,8 @@ func runUI(window *app.Window, listeningOn string, rm *remotes.Manager) error {
 	}
 }
 
-func runRemoteListener(wg *sync.WaitGroup, address string, window *app.Window, rm *remotes.Manager) *http.Server {
-	return listenForConn(wg, address, func(conn *websocket.Conn) error {
+func runRemoteListener(wg *sync.WaitGroup, window *app.Window, rm *remotes.Manager) *http.Server {
+	return listenForConn(wg, func(conn *websocket.Conn) error {
 		remoteId := rm.NewRemote(conn)
 		window.Invalidate()
 		defer rm.CloseRemote(remoteId)
@@ -118,7 +120,7 @@ func runRemoteListener(wg *sync.WaitGroup, address string, window *app.Window, r
 	})
 }
 
-func listenForConn(wg *sync.WaitGroup, address string, connMain func(conn *websocket.Conn) error) *http.Server {
+func listenForConn(wg *sync.WaitGroup, connMain func(conn *websocket.Conn) error) *http.Server {
 	// Start http server to listen for new connections from remote
 
 	upgrader := websocket.Upgrader{} // use default options
@@ -140,7 +142,7 @@ func listenForConn(wg *sync.WaitGroup, address string, connMain func(conn *webso
 	})
 
 	srv := &http.Server{
-		Addr:    address,
+		Addr:    listen,
 		Handler: r,
 	}
 
@@ -148,7 +150,7 @@ func listenForConn(wg *sync.WaitGroup, address string, connMain func(conn *webso
 	go func() {
 		defer wg.Done()
 
-		fmt.Printf("Listening on '%s'\n", address)
+		fmt.Printf("Listening on '%s'\n", listen)
 		if err := srv.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) {
 			log.Fatalf("ListenAndServe(): %v", err)
 		}

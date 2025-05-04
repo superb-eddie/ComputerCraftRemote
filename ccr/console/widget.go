@@ -124,8 +124,8 @@ func (c *Console) Layout(gtx layout.Context, style *widgets.Style) (dimensions l
 		lineOffsetStack := op.Offset(image.Pt(0, line*c.glyphSize.Y)).Push(gtx.Ops)
 		clipStack := clip.Rect(image.Rectangle{Max: lineSize}).Push(gtx.Ops)
 
-		paintLineBackground(gtx, c.glyphSize, lineBackground, c.palette)
-		paintLineForeground(gtx, c.glyphBuffer, lineText, lineForeground, c.palette, style)
+		paintLineBackground(gtx, c.glyphSize, lineBackground, c.palette, c.invertColors)
+		paintLineForeground(gtx, c.glyphBuffer, lineText, lineForeground, c.palette, style, c.invertColors)
 
 		clipStack.Pop()
 		lineOffsetStack.Pop()
@@ -146,7 +146,7 @@ func (c *Console) Layout(gtx layout.Context, style *widgets.Style) (dimensions l
 		offsetStack := op.Offset(cursorLocation).Push(gtx.Ops)
 
 		paint.FillShape(gtx.Ops,
-			c.palette.get(c.cursor.foreground),
+			c.palette.get(c.cursor.foreground, c.invertColors),
 			clip.Rect(image.Rect(
 				0, 0,
 				c.glyphSize.X, cursorHeight,
@@ -176,7 +176,7 @@ func calcScreenSize(cs layout.Constraints, glyphSize image.Point) (charSize, rea
 	)
 }
 
-func paintLineForeground(gtx layout.Context, glyphBuffer []text.Glyph, line []rune, foreground []Color, pal palette, style *widgets.Style) {
+func paintLineForeground(gtx layout.Context, glyphBuffer []text.Glyph, line []rune, foreground []Color, pal palette, style *widgets.Style, invertedColors bool) {
 	lineText := string(line)
 
 	style.Shaper.LayoutString(style.LayoutParameters(gtx), lineText)
@@ -196,7 +196,7 @@ func paintLineForeground(gtx layout.Context, glyphBuffer []text.Glyph, line []ru
 		// Paint vector glyphs
 		path := style.Shaper.Shape(glyphBuffer)
 		outlineOpStack := clip.Outline{Path: path}.Op().Push(gtx.Ops)
-		paint.ColorOp{Color: pal.get(glyphBufferColor)}.Add(gtx.Ops)
+		paint.ColorOp{Color: pal.get(glyphBufferColor, invertedColors)}.Add(gtx.Ops)
 		paint.PaintOp{}.Add(gtx.Ops)
 		outlineOpStack.Pop()
 
@@ -221,29 +221,28 @@ func paintLineForeground(gtx layout.Context, glyphBuffer []text.Glyph, line []ru
 		return
 	}
 
+	// Glyphs are painted in batches split by color
 	for {
 		glyph, glyphColor, ok := nextGlyph()
 		if !ok {
 			break
 		}
 
-		if len(glyphBuffer) == 0 {
-			// First glyph in this line
-			goto newChunk
+		isFirstGlyphInLine := len(glyphBuffer) == 0
+		isGlyphColorChanging := glyphBufferColor != glyphColor
+
+		isStartOfChunk := isFirstGlyphInLine || isGlyphColorChanging
+		if !isStartOfChunk {
+			glyphBuffer = append(glyphBuffer, glyph)
+			continue
 		}
 
-		if glyphBufferColor != glyphColor {
-			// Glyph color is changing, paint the last chunk and start a new one
+		if !isFirstGlyphInLine {
+			// Paint the old block before starting a new block
 			paintBuffer()
 			glyphBuffer = glyphBuffer[:0]
-			goto newChunk
 		}
 
-		// Add to chunk
-		glyphBuffer = append(glyphBuffer, glyph)
-		continue
-
-	newChunk:
 		glyphBufferDot = image.Pt(glyph.X.Floor(), int(glyph.Y))
 		glyphBufferColor = glyphColor
 		glyphBuffer = append(glyphBuffer, glyph)
@@ -253,27 +252,28 @@ func paintLineForeground(gtx layout.Context, glyphBuffer []text.Glyph, line []ru
 	paintBuffer()
 }
 
-func paintLineBackground(gtx layout.Context, glyphSize image.Point, background []Color, pal palette) {
+func paintLineBackground(gtx layout.Context, glyphSize image.Point, background []Color, pal palette, invertColors bool) {
 	var currentColor Color
 	var currentBounds image.Rectangle
 	paintBlock := func() {
-		paint.FillShape(gtx.Ops, pal.get(currentColor), clip.Rect(currentBounds).Op())
+		paint.FillShape(gtx.Ops, pal.get(currentColor, invertColors), clip.Rect(currentBounds).Op())
 	}
 
 	for i := range background {
-		if i == 0 {
-			goto newBlock
+		isFirstCell := i == 0
+		isColorChanging := currentColor != background[i]
+
+		isStartOfNewBlock := isFirstCell || isColorChanging
+
+		if !isStartOfNewBlock {
+			currentBounds.Max.X += glyphSize.X
+			continue
 		}
 
-		if currentColor != background[i] {
+		if !isFirstCell {
 			paintBlock()
-			goto newBlock
 		}
 
-		currentBounds.Max.X += glyphSize.X
-		continue
-
-	newBlock:
 		currentColor = background[i]
 		currentBounds = image.Rectangle{
 			Max: glyphSize,

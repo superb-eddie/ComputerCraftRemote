@@ -51,8 +51,12 @@ type palette struct {
 	p [16]color.NRGBA
 }
 
-func (p *palette) get(c Color) color.NRGBA {
-	return p.p[colorIndex(c)]
+func (p *palette) get(c Color, inverted bool) color.NRGBA {
+	idx := colorIndex(c)
+	if inverted {
+		idx = 15 - idx
+	}
+	return p.p[idx]
 }
 
 func (p *palette) set(c Color, cc color.NRGBA) {

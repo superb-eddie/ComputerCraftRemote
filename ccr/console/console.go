@@ -84,15 +84,15 @@ type Console struct {
 	cursor  cursor
 
 	// Rendering things below this line
-	glyphBuffer []text.Glyph
-	glyphSize   image.Point
-	screenSize  image.Point
-	//cursorOn    bool
+	glyphBuffer  []text.Glyph
+	glyphSize    image.Point
+	screenSize   image.Point
+	invertColors bool
 
 	heldKeys map[key.Name]struct{}
 }
 
-func NewConsole(name string) *Console {
+func NewConsole(name string, invertColors bool) *Console {
 	startingSize := image.Pt(50, 50)
 
 	console := &Console{
@@ -105,9 +105,9 @@ func NewConsole(name string) *Console {
 			foreground: ColorWhite,
 			background: ColorBlack,
 		},
-		glyphBuffer: make([]text.Glyph, 0, startingSize.X),
-		//cursorOn:    true,
-		heldKeys: map[key.Name]struct{}{},
+		glyphBuffer:  make([]text.Glyph, 0, startingSize.X),
+		invertColors: invertColors,
+		heldKeys:     map[key.Name]struct{}{},
 	}
 	console.buffer.resize(startingSize)
 
