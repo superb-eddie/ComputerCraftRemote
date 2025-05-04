@@ -209,7 +209,7 @@ end
 -- begin display_redirect
 
 local function round(n)
-    return math.floor(tonumber(n)+0.5)
+    return math.floor((tonumber(n, 10) or 0)+0.5)
 end
 
 local function nativePalette()
@@ -280,8 +280,8 @@ local function ccrRedirect(ws, name)
 
     -- begin Redirect
 
-    local function cursorInBounds()
-        return ((ccr.cursorX > 0) and (ccr.cursorX <= ccr.sizeX)) and
+    local function canWriteText(charCount)
+        return (((ccr.cursorX+charCount) > 0) and (ccr.cursorX <= ccr.sizeX)) and
                 ((ccr.cursorY > 0) and (ccr.cursorY <= ccr.sizeY))
     end
 
@@ -290,11 +290,11 @@ local function ccrRedirect(ws, name)
     end
 
     function ccr.write(text)
-        if not cursorInBounds() then
+        local text = tostring(text)
+        if not canWriteText(#text) then
             return
         end
 
-        local text = tostring(text)
         updateCursor(text)
         send(mkMessage.Write(text))
     end
@@ -366,11 +366,11 @@ local function ccrRedirect(ws, name)
     ccr.isColour = ccr.isColor
 
     function ccr.blit(text, textColor, backgroundColor)
-        if not cursorInBounds() then
+        local text = tostring(text)
+        if not canWriteText(#text) then
             return
         end
 
-        local text = tostring(text)
         updateCursor(text)
         send(mkMessage.Blit(
                 text,

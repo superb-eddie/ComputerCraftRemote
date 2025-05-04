@@ -9,57 +9,58 @@ import (
 	"gioui.org/text"
 )
 
-func isPrintableChar(char rune) bool {
-	return (char >= 0x00) && (char <= 0xFF)
-}
-
-// The characters that cc's charset borrows from codepage 437 in the order they appear in cc
+// cp437 contains the characters that cc borrows from codepage 437 in the order that cc uses them (spacers included for unused chars)
 var cp437 = []rune{' ', '☺', '☻', '♥', '♦', '♣', '♠', '•', '◘', ' ', ' ', '♂', '♀', ' ', '♪', '♫', '►', '◄', '↕', '‼', '¶', '§', '▬', '↨', '↑', '↓', '→', '←', '∟', '↔', '▲', '▼'}
 
 // fromCCCharset maps Computer Craft's character set to Unicode
 func fromCCCharset(char rune) rune {
-	if !isPrintableChar(char) {
-		return '�'
+	if (char < 0x00) || (char > 0xFF) {
+		return '�' // Not in range
 	}
 
-	if char == 0x7F {
-		return '░'
-	}
-
-	// These don't get rendered
-	if char == '\t' || char == '\n' || char == '\r' {
+	// Get the easy cases out of the way
+	switch char {
+	case '\t', '\n', '\r':
+		// These characters aren't rendered
 		return ' '
+	case 0x7F:
+		// DEL in the ascii range. cc renders a shading character
+		return '░'
+	case 0xAD:
+		// Soft hyphen in the latin1 range.
+		// Most fonts don't render it but cc renders it like a typical hyphen
+		return '-'
+	case 0x80:
+		// In the teletext range, but not rendered
+		return ' '
+	case 0x95:
+		// In the teletext range, but it's replaced with a character outside Unicode's sextant blocks
+		return '▌'
 	}
 
-	isAscii := (char >= 0x20) && (char <= 0x7F)
-	isLatin1 := (char >= 0xA0) && (char <= 0xFF)
-	if isAscii || isLatin1 {
-		if char == 0xAD {
-			// Replace soft-hyphen with something that'll be rendered
-			return '-'
-		}
-		return char
-	}
-
-	// characters borrowed from cp437
-	isCP437 := (char >= 0x00) && (char <= 0x1f)
+	// Chars borrowed from IBM's code page 437
+	isCP437 := char < 0x20
 	if isCP437 {
 		return cp437[uint(char)]
 	}
 
-	// characters borrow from teletext
-	isTeletext := (char >= 0x80) && (char <= 0x9f)
+	// Chars borrow from teletext
+	isTeletext := (char >= 0x80) && (char < 0xA0)
 	if isTeletext {
-		// A portion of sextant blocks, offset by one
+		// We use sextant blocks to emulate these characters.
+		// The blocks are used in the same order they appear in utf8, except for two holes at 0x80 and 0x95
 		// https://www.unicode.org/charts/PDF/U1FB00.pdf
-		if char == 0x80 {
-			// Fill hole left from offset
-			return ' '
+		offset := 1
+		if char >= 0x95 {
+			offset += 1
 		}
-		return '\U0001FB00' + ((char - 1) - 0x80)
+
+		return '\U0001FB00' + (char - rune(0x80+offset))
 	}
 
-	return '�'
+	// If we haven't matched the character by this point, then it should be an
+	//  ascii or latin1 character which uses that same codepoint as Unicode.
+	return char
 }
 
 func popRune(buf []byte) ([]byte, rune) {
@@ -129,34 +130,42 @@ func (c *Console) Write(text string) {
 	if !utf8.ValidString(text) {
 		panic("text is not valid utf8")
 	}
+	textBuf := []byte(text)
+	runeCount := utf8.RuneCount(textBuf)
 
-	pos := c.cursor.position
-	if !c.buffer.inBounds(c.cursor.position) {
+	// Most writes are treated as a no-op if the cursor is off the screen, except when
+	//  the cursor is off the left edge and the string is long enough to reach the screen
+	bufferSize := c.buffer.size()
+	cursorPos := c.cursor.position
+
+	inYBounds := cursorPos.Y >= 0 && cursorPos.Y < bufferSize.Y
+	inXBounds := (cursorPos.X+runeCount) >= 0 && cursorPos.X < bufferSize.X
+	if !(inYBounds && inXBounds) {
 		return
 	}
-	bufferWidth := c.buffer.size().X
-
-	textBuf := []byte(text)
 
 	var r rune
-	for pos.X < bufferWidth {
+	for cursorPos.X < bufferSize.X {
+
 		textBuf, r = popRune(textBuf)
 		if r == utf8.RuneError {
 			// String ended or isn't valid utf8
 			break
 		}
 
-		c.buffer.setCell(
-			pos,
-			fromCCCharset(r),
-			c.cursor.foreground,
-			c.cursor.background,
-		)
+		if cursorPos.X >= 0 {
+			c.buffer.setCell(
+				cursorPos,
+				fromCCCharset(r),
+				c.cursor.foreground,
+				c.cursor.background,
+			)
+		}
 
-		pos.X += 1
+		cursorPos.X += 1
 	}
 
-	c.cursor.position = pos
+	c.cursor.position = cursorPos
 }
 
 func (c *Console) Blit(text, foreground, background string) {
@@ -166,18 +175,25 @@ func (c *Console) Blit(text, foreground, background string) {
 		}
 	}
 
-	pos := c.cursor.position
-	if !c.buffer.inBounds(c.cursor.position) {
-		return
-	}
-	bufferWidth := c.buffer.size().X
-
-	textBuf := []byte(text)
 	foregroundBuf := []byte(foreground)
 	backgroundBuf := []byte(background)
+	textBuf := []byte(text)
+	runeCount := utf8.RuneCount(textBuf)
+
+	// Most writes are treated as a no-op if the cursor is off the screen, except when
+	//  the cursor is off the left edge and the string is long enough to reach the screen
+	bufferSize := c.buffer.size()
+	cursorPos := c.cursor.position
+
+	inYBounds := cursorPos.Y >= 0 && cursorPos.Y < bufferSize.Y
+	inXBounds := (cursorPos.X+runeCount) >= 0 && cursorPos.X < bufferSize.X
+	if !(inYBounds && inXBounds) {
+		return
+	}
 
 	var r, fr, br rune
-	for pos.X < bufferWidth {
+	for cursorPos.X < bufferSize.X {
+
 		textBuf, r = popRune(textBuf)
 		if r == utf8.RuneError {
 			break
@@ -193,17 +209,19 @@ func (c *Console) Blit(text, foreground, background string) {
 			break
 		}
 
-		c.buffer.setCell(
-			pos,
-			fromCCCharset(r),
-			colorFromHexDigit(fr),
-			colorFromHexDigit(br),
-		)
+		if cursorPos.X >= 0 {
+			c.buffer.setCell(
+				cursorPos,
+				fromCCCharset(r),
+				colorFromHexDigit(fr),
+				colorFromHexDigit(br),
+			)
+		}
 
-		pos.X += 1
+		cursorPos.X += 1
 	}
 
-	c.cursor.position = pos
+	c.cursor.position = cursorPos
 }
 
 func (c *Console) Scroll(y int) {
