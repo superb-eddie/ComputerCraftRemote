@@ -32,7 +32,8 @@
 
           subPackages = [ "ccr/cmd/ccr" ];
           src = ./.;
-          vendorHash = "sha256-XSNGTnHNuq7uvSDnwFKcs5b/Tjk+grr8MoV8uwYqXzo=";
+
+          vendorHash = "sha256-lE7VDVykcp0P0r3xPdplDjppSonFIkl4GQEY0BtBipg=";
 #          vendorHash = lib.fakeHash;
 
           meta = {
