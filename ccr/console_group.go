@@ -2,6 +2,8 @@ package ccr
 
 import (
 	"fmt"
+	"net"
+	"strings"
 
 	"gioui.org/layout"
 
@@ -15,6 +17,32 @@ type ConsoleGroup struct {
 }
 
 func NewConsoleGroupWidget(listeningOn string) *ConsoleGroup {
+	if strings.HasPrefix(listeningOn, ":") {
+		// We're listening on all addresses, so lookup our current ips to display useful info
+
+		addresses, err := net.InterfaceAddrs()
+		if err != nil {
+			fmt.Println("WARNING: Couldn't get addresses ", err.Error())
+		}
+		hosts := []string{}
+		for _, addr := range addresses {
+			ip, _, err := net.ParseCIDR(addr.String())
+			if err != nil {
+				fmt.Println("WARNING: Couldn't resolve ip ", addr)
+				continue
+			}
+
+			ip = ip.To4()
+			if ip == nil {
+				continue
+			}
+
+			hosts = append(hosts, ip.String()+listeningOn)
+		}
+
+		listeningOn = strings.Join(hosts, ", ")
+	}
+
 	return &ConsoleGroup{
 		tv:          widgets.TabbedView{},
 		listeningOn: listeningOn,
@@ -29,7 +57,7 @@ func (cg *ConsoleGroup) Layout(gtx layout.Context, style *widgets.Style, rm *rem
 				Axis: layout.Vertical,
 			}.Layout(gtx,
 				layout.Rigid(widgets.Label(style, "No remotes connected.")),
-				layout.Rigid(widgets.Label(style, fmt.Sprintf("Listening on '%s'", cg.listeningOn))))
+				layout.Rigid(widgets.Label(style, fmt.Sprintf("Listening on %s", cg.listeningOn))))
 		})(gtx)
 	}
 
