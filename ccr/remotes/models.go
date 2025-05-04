@@ -118,70 +118,72 @@ type MessageHandler interface {
 }
 
 func HandlePacket(buf []byte, handler MessageHandler) error {
-	var p packet
-	if err := json.Unmarshal(buf, &p); err != nil {
+	var packets []packet
+	if err := json.Unmarshal(buf, &packets); err != nil {
 		return fmt.Errorf("unmarshalling packet: %w", err)
 	}
 
-	switch p.Name {
-	case clearMessageName:
-		handler.Clear()
-	case clearLineMessageName:
-		handler.ClearLine()
-	case writeMessageName:
-		var m writeMessage
-		if err := json.Unmarshal(p.Payload, &m); err != nil {
-			return fmt.Errorf("unmarshalling packet payload: %w", err)
+	for _, p := range packets {
+		switch p.Name {
+		case clearMessageName:
+			handler.Clear()
+		case clearLineMessageName:
+			handler.ClearLine()
+		case writeMessageName:
+			var m writeMessage
+			if err := json.Unmarshal(p.Payload, &m); err != nil {
+				return fmt.Errorf("unmarshalling packet payload: %w", err)
+			}
+			handler.Write(m.Text)
+		case blitMessageName:
+			var m blitMessage
+			if err := json.Unmarshal(p.Payload, &m); err != nil {
+				return fmt.Errorf("unmarshalling packet payload: %w", err)
+			}
+			handler.Blit(m.Text, m.Foreground, m.Background)
+		case scrollMessageName:
+			var m scrollMessage
+			if err := json.Unmarshal(p.Payload, &m); err != nil {
+				return fmt.Errorf("unmarshalling packet payload: %w", err)
+			}
+			handler.Scroll(m.Y)
+		case setCursorPositionMessageName:
+			var m setCursorPositionMessage
+			if err := json.Unmarshal(p.Payload, &m); err != nil {
+				return fmt.Errorf("unmarshalling packet payload: %w", err)
+			}
+			handler.SetCursorPosition(m.X, m.Y)
+		case setCursorBlinkMessageName:
+			var m setCursorBlinkMessage
+			if err := json.Unmarshal(p.Payload, &m); err != nil {
+				return fmt.Errorf("unmarshalling packet payload: %w", err)
+			}
+			handler.SetCursorBlink(m.Blink)
+		case setForegroundColorMessageName:
+			var m setForegroundColorMessage
+			if err := json.Unmarshal(p.Payload, &m); err != nil {
+				return fmt.Errorf("unmarshalling packet payload: %w", err)
+			}
+			handler.SetForegroundColor(m.Color)
+		case setBackgroundColorMessageName:
+			var m setBackgroundColorMessage
+			if err := json.Unmarshal(p.Payload, &m); err != nil {
+				return fmt.Errorf("unmarshalling packet payload: %w", err)
+			}
+			handler.SetBackgroundColor(m.Color)
+		case setPaletteColorMessageName:
+			var m setPaletteColorMessage
+			if err := json.Unmarshal(p.Payload, &m); err != nil {
+				return fmt.Errorf("unmarshalling packet payload: %w", err)
+			}
+			handler.SetPaletteColor(m.Color, m.R, m.G, m.B)
+		case setConsoleNameMessageName:
+			var m setConsoleNameMessage
+			if err := json.Unmarshal(p.Payload, &m); err != nil {
+				return fmt.Errorf("unmarshalling packet payload: %w", err)
+			}
+			handler.SetConsoleName(m.Name)
 		}
-		handler.Write(m.Text)
-	case blitMessageName:
-		var m blitMessage
-		if err := json.Unmarshal(p.Payload, &m); err != nil {
-			return fmt.Errorf("unmarshalling packet payload: %w", err)
-		}
-		handler.Blit(m.Text, m.Foreground, m.Background)
-	case scrollMessageName:
-		var m scrollMessage
-		if err := json.Unmarshal(p.Payload, &m); err != nil {
-			return fmt.Errorf("unmarshalling packet payload: %w", err)
-		}
-		handler.Scroll(m.Y)
-	case setCursorPositionMessageName:
-		var m setCursorPositionMessage
-		if err := json.Unmarshal(p.Payload, &m); err != nil {
-			return fmt.Errorf("unmarshalling packet payload: %w", err)
-		}
-		handler.SetCursorPosition(m.X, m.Y)
-	case setCursorBlinkMessageName:
-		var m setCursorBlinkMessage
-		if err := json.Unmarshal(p.Payload, &m); err != nil {
-			return fmt.Errorf("unmarshalling packet payload: %w", err)
-		}
-		handler.SetCursorBlink(m.Blink)
-	case setForegroundColorMessageName:
-		var m setForegroundColorMessage
-		if err := json.Unmarshal(p.Payload, &m); err != nil {
-			return fmt.Errorf("unmarshalling packet payload: %w", err)
-		}
-		handler.SetForegroundColor(m.Color)
-	case setBackgroundColorMessageName:
-		var m setBackgroundColorMessage
-		if err := json.Unmarshal(p.Payload, &m); err != nil {
-			return fmt.Errorf("unmarshalling packet payload: %w", err)
-		}
-		handler.SetBackgroundColor(m.Color)
-	case setPaletteColorMessageName:
-		var m setPaletteColorMessage
-		if err := json.Unmarshal(p.Payload, &m); err != nil {
-			return fmt.Errorf("unmarshalling packet payload: %w", err)
-		}
-		handler.SetPaletteColor(m.Color, m.R, m.G, m.B)
-	case setConsoleNameMessageName:
-		var m setConsoleNameMessage
-		if err := json.Unmarshal(p.Payload, &m); err != nil {
-			return fmt.Errorf("unmarshalling packet payload: %w", err)
-		}
-		handler.SetConsoleName(m.Name)
 	}
 
 	return nil

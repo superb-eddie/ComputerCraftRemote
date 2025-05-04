@@ -8,12 +8,12 @@ local ccrConfig = {
     bufferSize = {
         description = "How many messages to buffer before flushing to server",
         type = "number",
-        default = 255,
+        default = 50,
     },
     bufferFlushPeriod = {
         description = "Time in milliseconds to wait before sending message buffer, regardless of how many messages are queued.",
         type = "number",
-        default = 5,
+        default = 4,
     },
 }
 
@@ -137,16 +137,12 @@ local function connectWs(host)
 end
 
 ---@param ws Websocket
----@param packet Packet
------@return Packet
-local function sendMessage(ws, packet)
+---@param buffer list<Packet>
+local function sendPacketBuffer(ws, buffer)
     expect(1, ws, "table")
-    expect(2, packet, "table")
+    expect(2, buffer, "table")
 
-    field(packet, "name", "string")
-    field(packet, "payload", "table", "nil")
-
-    ws.send(textutils.serialiseJSON(packet))
+    ws.send(textutils.serialiseJSON(buffer))
 end
 
 ---@param ws Websocket
@@ -255,17 +251,15 @@ local function ccrRedirect(ws, name)
 
         local isFlushPeriodOver = (now - ccr.lastFlushTime) > ccr.bufferFlushPeriod
         local isBufferFull = #ccr.packetBuffer > ccr.bufferSize
+        local isBufferEmpty = #ccr.packetBuffer == 0
 
         if isFlushPeriodOver then
             ccr.updateConfig()
         end
 
-        if isFlushPeriodOver or isBufferFull then
+        if (isFlushPeriodOver and not isBufferEmpty) or isBufferFull then
             ccr.lastFlushTime = now
-
-            for _, p in ipairs(ccr.packetBuffer) do
-                sendMessage(ws, p)
-            end
+            sendPacketBuffer(ws, ccr.packetBuffer)
             ccr.packetBuffer = {}
         end
 
