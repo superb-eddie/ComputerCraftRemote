@@ -412,6 +412,10 @@ end
 local function main(host)
     expect(1, host, "string")
 
+    if not host:match(".+\:%d+$") then
+        host = host .. ":338"
+    end
+
     local ws = connectWs(host)
 
     local name = os.getComputerLabel()
@@ -428,6 +432,7 @@ local function main(host)
             end,
             function()
                 while true do
+                    os.sleep(0.05)
                     pollEvent(ws, redirect)
                 end
             end,
