@@ -4,6 +4,27 @@
 local expect = require "cc.expect"
 local expect, field = expect.expect, expect.field
 
+local ccrConfig = {
+    bufferSize = {
+        description = "How many messages to buffer before flushing to server",
+        type = "number",
+        default = 500,
+    },
+    bufferFlushPeriod = {
+        description = "Time in milliseconds to wait before sending message buffer, regardless of how many messages are queued.",
+        type = "number",
+        default = 20,
+    },
+}
+
+for id,def in pairs(ccrConfig) do
+    local ccrId = "ccr." .. id
+    settings.define(ccrId, def)
+    ccrConfig[id] = function()
+        return settings.get(ccrId)
+    end
+end
+
 -- begin packets
 
 ---@class Packet
@@ -216,31 +237,43 @@ local function ccrRedirect(ws, name)
         foregroundColor = colors.white,
         backgroundColor = colors.black,
         palette = nativePalette(),
-        packetQueue = {},
-        maxQueueSize = 500,
-        lastSendTime = 0,
-        maxSendWaitMs = 20
+        packetBuffer = {},
+        lastFlushTime = 0,
     }
 
-    function ccr.sendPacketQueue()
-    --    Called in a loop
+    function ccr.updateConfig()
+        for name, f in pairs(ccrConfig) do
+            ccr[name] = f()
+        end
+    end
+    ccr.updateConfig()
+
+    function ccr.flushPacketBuffer()
         -- Send packet queue when full or after a small amount of time
         local now = os.epoch("utc")
-        if (now - ccr.lastSendTime) > ccr.maxSendWaitMs or (#ccr.packetQueue >= ccr.maxQueueSize) then
-            ccr.lastSendTime = now
+        local elapsed = now - ccr.lastFlushTime
 
-            for _, p in ipairs(ccr.packetQueue) do
+        local isFlushPeriodOver = (now - ccr.lastFlushTime) > ccr.bufferFlushPeriod
+        local isBufferFull = #ccr.packetBuffer > ccr.bufferSize
+
+        if isFlushPeriodOver then
+            ccr.updateConfig()
+        end
+
+        if isFlushPeriodOver or isBufferFull then
+            ccr.lastFlushTime = now
+
+            for _, p in ipairs(ccr.packetBuffer) do
                 sendMessage(ws, p)
             end
-
-            ccr.packetQueue = {}
+            ccr.packetBuffer = {}
         end
 
     end
 
     ---@param packet Packet
     local function send(packet)
-        table.insert(ccr.packetQueue, packet)
+        table.insert(ccr.packetBuffer, packet)
     end
 
     send(mkMessage.SetConsoleName(name))
@@ -401,7 +434,7 @@ local function main(host)
             function()
                 while true do
                     os.sleep(0.05)
-                    redirect.sendPacketQueue()
+                    redirect.flushPacketBuffer()
                 end
             end
     )
