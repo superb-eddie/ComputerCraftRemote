@@ -12,11 +12,13 @@ import (
 )
 
 type ConsoleGroup struct {
-	tv          widgets.TabbedView
-	listeningOn string
+	tv                widgets.TabbedView
+	listeningOn       string
+	clientDownloadUrl string
 }
 
 func NewConsoleGroupWidget(listeningOn string) *ConsoleGroup {
+	downloadHost := listeningOn
 	if strings.HasPrefix(listeningOn, ":") {
 		// We're listening on all addresses, so lookup our current ips to display useful info
 
@@ -40,12 +42,14 @@ func NewConsoleGroupWidget(listeningOn string) *ConsoleGroup {
 			hosts = append(hosts, ip.String()+listeningOn)
 		}
 
+		downloadHost = "<ip_address>" + listeningOn // download host gets a placeholder since we have more than one host
 		listeningOn = strings.Join(hosts, ", ")
 	}
 
 	return &ConsoleGroup{
-		tv:          widgets.TabbedView{},
-		listeningOn: listeningOn,
+		tv:                widgets.TabbedView{},
+		listeningOn:       listeningOn,
+		clientDownloadUrl: fmt.Sprintf("http://%s/ccr.lua", downloadHost),
 	}
 }
 
@@ -57,7 +61,8 @@ func (cg *ConsoleGroup) Layout(gtx layout.Context, style *widgets.Style, rm *rem
 				Axis: layout.Vertical,
 			}.Layout(gtx,
 				layout.Rigid(widgets.Label(style, "No remotes connected.")),
-				layout.Rigid(widgets.Label(style, fmt.Sprintf("Listening on %s", cg.listeningOn))))
+				layout.Rigid(widgets.Label(style, fmt.Sprintf("Listening on %s", cg.listeningOn))),
+				layout.Rigid(widgets.Label(style, fmt.Sprintf("Download client: `wget %s`", cg.clientDownloadUrl))))
 		})(gtx)
 	}
 

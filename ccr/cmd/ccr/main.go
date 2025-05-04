@@ -1,7 +1,9 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	_ "embed"
 	"errors"
 	"flag"
 	"fmt"
@@ -22,6 +24,9 @@ import (
 	"ccr/ccr/remotes"
 	"ccr/ccr/widgets"
 )
+
+//go:embed ccr.lua
+var remoteScript []byte
 
 var debug bool
 var invertColors bool
@@ -125,6 +130,9 @@ func listenForConn(wg *sync.WaitGroup, connMain func(conn *websocket.Conn) error
 
 	upgrader := websocket.Upgrader{} // use default options
 	r := mux.NewRouter()
+	r.HandleFunc("/ccr.lua", func(w http.ResponseWriter, r *http.Request) {
+		http.ServeContent(w, r, "ccr.lua", time.Now(), bytes.NewReader(remoteScript))
+	})
 	r.HandleFunc("/.well-known/ccremote", func(w http.ResponseWriter, r *http.Request) {
 		// Upgrade to websocket
 		c, err := upgrader.Upgrade(w, r, nil)
