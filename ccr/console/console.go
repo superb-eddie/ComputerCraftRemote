@@ -6,6 +6,7 @@ import (
 	"unicode/utf8"
 
 	"gioui.org/io/key"
+	"gioui.org/io/pointer"
 	"gioui.org/text"
 )
 
@@ -89,7 +90,9 @@ type Console struct {
 	screenSize   image.Point
 	invertColors bool
 
-	heldKeys map[key.Name]struct{}
+	heldKeys          map[key.Name]struct{}
+	prevMouseButtons  pointer.Buttons
+	prevMousePosition image.Point
 }
 
 func NewConsole(name string, invertColors bool) *Console {
@@ -105,9 +108,10 @@ func NewConsole(name string, invertColors bool) *Console {
 			foreground: ColorWhite,
 			background: ColorBlack,
 		},
-		glyphBuffer:  make([]text.Glyph, 0, startingSize.X),
-		invertColors: invertColors,
-		heldKeys:     map[key.Name]struct{}{},
+		glyphBuffer:      make([]text.Glyph, 0, startingSize.X),
+		invertColors:     invertColors,
+		heldKeys:         map[key.Name]struct{}{},
+		prevMouseButtons: 0,
 	}
 	console.buffer.resize(startingSize)
 

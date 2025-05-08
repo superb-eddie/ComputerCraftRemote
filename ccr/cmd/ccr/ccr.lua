@@ -417,12 +417,17 @@ local function main(host)
         name = ("#%d"):format(os.getComputerID())
     end
 
+    local shellCmd = "shell"
+    if term.native().isColor() then
+       shellCmd = "multishell"
+    end
+
     local redirect = ccrRedirect(ws, name)
     local originalRedirect = term.redirect(redirect)
     local ok, err = pcall(
             parallel.waitForAny,
             function()
-                shell.run("shell")
+                shell.run(shellCmd)
             end,
             function()
                 while true do

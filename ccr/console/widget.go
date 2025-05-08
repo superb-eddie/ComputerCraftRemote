@@ -4,9 +4,11 @@ import (
 	"image"
 	"io"
 
+	"gioui.org/f32"
 	"gioui.org/io/clipboard"
 	"gioui.org/io/event"
 	"gioui.org/io/key"
+	"gioui.org/io/pointer"
 	"gioui.org/io/semantic"
 	"gioui.org/io/transfer"
 	"gioui.org/layout"
@@ -22,6 +24,15 @@ import (
 
 func (c *Console) FocusTag() event.Tag {
 	return c
+}
+
+func (c *Console) roundMousePosition(position f32.Point) image.Point {
+	// round position to the nearest cell
+	bufferSize := c.buffer.size()
+	return image.Pt(
+		int((position.X/float32(c.screenSize.X))*float32(bufferSize.X))+1,
+		int((position.Y/float32(c.screenSize.Y))*float32(bufferSize.Y))+1,
+	)
 }
 
 func (c *Console) Update(gtx layout.Context, style *widgets.Style) (events []CCEvent) {
@@ -50,6 +61,10 @@ func (c *Console) Update(gtx layout.Context, style *widgets.Style) (events []CCE
 			key.Filter{
 				Name:     key.NameTab,
 				Optional: key.ModShift | key.ModCommand | key.ModCtrl | key.ModAlt | key.ModSuper,
+			},
+			pointer.Filter{
+				Target: c.FocusTag(),
+				Kinds:  pointer.Press | pointer.Release | pointer.Drag | pointer.Cancel,
 			},
 			transfer.TargetFilter{
 				Target: c.FocusTag(),
@@ -99,6 +114,54 @@ func (c *Console) Update(gtx layout.Context, style *widgets.Style) (events []CCE
 				events = append(events, mkKeyUpEvent(keycode))
 			}
 
+		case pointer.Event:
+			changedButtons := c.prevMouseButtons ^ e.Buttons
+			c.prevMouseButtons = e.Buttons
+
+			position := c.roundMousePosition(e.Position)
+
+			switch e.Kind {
+			case pointer.Press:
+				c.prevMousePosition = position
+
+				events = append(events, mkMouseClick(
+					FromButtons(changedButtons),
+					position.X,
+					position.Y,
+				))
+
+			case pointer.Cancel, pointer.Release:
+				c.prevMousePosition = position
+
+				events = append(events, mkMouseUp(
+					FromButtons(changedButtons),
+					position.X,
+					position.Y,
+				))
+
+			case pointer.Drag:
+				// TODO: Cancel drag when pointer leaves window
+				if c.prevMousePosition == position {
+					continue
+				}
+				c.prevMousePosition = position
+
+				for _, button := range []pointer.Buttons{
+					pointer.ButtonPrimary,
+					pointer.ButtonSecondary,
+					pointer.ButtonTertiary,
+				} {
+					if e.Buttons.Contain(button) {
+						events = append(events, mkMouseDrag(
+							FromButtons(button),
+							position.X,
+							position.Y,
+						))
+					}
+				}
+
+			default:
+			}
 		}
 	}
 

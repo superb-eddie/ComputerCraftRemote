@@ -6,6 +6,7 @@ import (
 	"unicode/utf8"
 
 	"gioui.org/io/key"
+	"gioui.org/io/pointer"
 )
 
 type MouseButton int
@@ -15,6 +16,18 @@ const (
 	MouseButton_Right
 	MouseButton_Middle
 )
+
+func FromButtons(b pointer.Buttons) MouseButton {
+	switch b {
+	case pointer.ButtonPrimary:
+		return MouseButton_Left
+	case pointer.ButtonSecondary:
+		return MouseButton_Right
+	case pointer.ButtonTertiary:
+		return MouseButton_Middle
+	}
+	return -1
+}
 
 type ScrollDirection int
 
