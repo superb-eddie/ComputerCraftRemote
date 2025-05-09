@@ -1,4 +1,4 @@
-module ccr
+module github.com/superb-eddie/ComputerCraftRemote
 
 go 1.24.2
 
