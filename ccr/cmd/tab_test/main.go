@@ -14,7 +14,7 @@ import (
 	"gioui.org/widget"
 	"gioui.org/widget/material"
 
-	"ccr/ccr/widgets"
+	"github.com/superb-eddie/ComputerCraftRemote/ccr/widgets"
 )
 
 type Tab struct {

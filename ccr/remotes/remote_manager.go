@@ -9,8 +9,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 
-	"ccr/ccr/console"
-	"ccr/ccr/widgets"
+	"github.com/superb-eddie/ComputerCraftRemote/ccr/console"
+	"github.com/superb-eddie/ComputerCraftRemote/ccr/widgets"
 )
 
 // TODO: I hate remote manager

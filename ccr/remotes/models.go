@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"ccr/ccr/console"
+	"github.com/superb-eddie/ComputerCraftRemote/ccr/console"
 )
 
 // TODO: Code gen here

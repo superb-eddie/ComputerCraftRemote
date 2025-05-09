@@ -19,10 +19,10 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
 
-	"ccr/ccr"
-	"ccr/ccr/console"
-	"ccr/ccr/remotes"
-	"ccr/ccr/widgets"
+	"github.com/superb-eddie/ComputerCraftRemote/ccr"
+	"github.com/superb-eddie/ComputerCraftRemote/ccr/console"
+	"github.com/superb-eddie/ComputerCraftRemote/ccr/remotes"
+	"github.com/superb-eddie/ComputerCraftRemote/ccr/widgets"
 )
 
 //go:embed ccr.lua

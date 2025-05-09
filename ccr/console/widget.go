@@ -17,7 +17,7 @@ import (
 	"gioui.org/op/paint"
 	"gioui.org/text"
 
-	"ccr/ccr/widgets"
+	"github.com/superb-eddie/ComputerCraftRemote/ccr/widgets"
 )
 
 // The rendering methods on the console

@@ -7,8 +7,8 @@ import (
 
 	"gioui.org/layout"
 
-	"ccr/ccr/remotes"
-	"ccr/ccr/widgets"
+	"github.com/superb-eddie/ComputerCraftRemote/ccr/remotes"
+	"github.com/superb-eddie/ComputerCraftRemote/ccr/widgets"
 )
 
 type ConsoleGroup struct {
