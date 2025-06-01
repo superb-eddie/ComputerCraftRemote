@@ -85,17 +85,16 @@ type Console struct {
 	cursor  cursor
 
 	// Rendering things below this line
-	glyphBuffer  []text.Glyph
-	glyphSize    image.Point
-	screenSize   image.Point
-	invertColors bool
+	glyphBuffer []text.Glyph
+	glyphSize   image.Point
+	screenSize  image.Point
 
 	heldKeys          map[key.Name]struct{}
 	prevMouseButtons  pointer.Buttons
 	prevMousePosition image.Point
 }
 
-func NewConsole(name string, invertColors bool) *Console {
+func NewConsole(name string) *Console {
 	startingSize := image.Pt(50, 50)
 
 	console := &Console{
@@ -109,7 +108,6 @@ func NewConsole(name string, invertColors bool) *Console {
 			background: ColorBlack,
 		},
 		glyphBuffer:      make([]text.Glyph, 0, startingSize.X),
-		invertColors:     invertColors,
 		heldKeys:         map[key.Name]struct{}{},
 		prevMouseButtons: 0,
 	}
@@ -122,139 +120,21 @@ func (c *Console) SetConsoleName(name string) {
 	c.Name = name
 }
 
-func (c *Console) Clear() {
-	c.buffer.clear()
-}
+func (c *Console) UpdateFromRemote(remote ScreenUpdatePacket) {
+	c.buffer.updateFromRemote(remote.Buffer)
 
-func (c *Console) ClearLine() {
-	c.buffer.clearLine(c.cursor.position.Y)
-}
-
-func (c *Console) Write(text string) {
-	if !utf8.ValidString(text) {
-		panic("text is not valid utf8")
-	}
-	textBuf := []byte(text)
-	runeCount := utf8.RuneCount(textBuf)
-
-	// Most writes are treated as a no-op if the cursor is off the screen, except when
-	//  the cursor is off the left edge and the string is long enough to reach the screen
-	bufferSize := c.buffer.size()
-	cursorPos := c.cursor.position
-
-	inYBounds := cursorPos.Y >= 0 && cursorPos.Y < bufferSize.Y
-	inXBounds := (cursorPos.X+runeCount) >= 0 && cursorPos.X < bufferSize.X
-	if !(inYBounds && inXBounds) {
-		return
+	for b, parts := range remote.Palette {
+		c.palette.set(colorFromHexByte(b[0]), color.NRGBA{
+			R: uint8(parts[0] * 255.0),
+			G: uint8(parts[1] * 255.0),
+			B: uint8(parts[2] * 255.0),
+			A: 0xFF,
+		})
 	}
 
-	var r rune
-	for cursorPos.X < bufferSize.X {
-
-		textBuf, r = popRune(textBuf)
-		if r == utf8.RuneError {
-			// String ended or isn't valid utf8
-			break
-		}
-
-		if cursorPos.X >= 0 {
-			c.buffer.setCell(
-				cursorPos,
-				fromCCCharset(r),
-				c.cursor.foreground,
-				c.cursor.background,
-			)
-		}
-
-		cursorPos.X += 1
-	}
-
-	c.cursor.position = cursorPos
-}
-
-func (c *Console) Blit(text, foreground, background string) {
-	for _, s := range []string{text, foreground, background} {
-		if !utf8.ValidString(s) {
-			panic("text is not valid utf8")
-		}
-	}
-
-	foregroundBuf := []byte(foreground)
-	backgroundBuf := []byte(background)
-	textBuf := []byte(text)
-	runeCount := utf8.RuneCount(textBuf)
-
-	// Most writes are treated as a no-op if the cursor is off the screen, except when
-	//  the cursor is off the left edge and the string is long enough to reach the screen
-	bufferSize := c.buffer.size()
-	cursorPos := c.cursor.position
-
-	inYBounds := cursorPos.Y >= 0 && cursorPos.Y < bufferSize.Y
-	inXBounds := (cursorPos.X+runeCount) >= 0 && cursorPos.X < bufferSize.X
-	if !(inYBounds && inXBounds) {
-		return
-	}
-
-	var r, fr, br rune
-	for cursorPos.X < bufferSize.X {
-
-		textBuf, r = popRune(textBuf)
-		if r == utf8.RuneError {
-			break
-		}
-
-		foregroundBuf, fr = popRune(foregroundBuf)
-		if fr == utf8.RuneError {
-			break
-		}
-
-		backgroundBuf, br = popRune(backgroundBuf)
-		if br == utf8.RuneError {
-			break
-		}
-
-		if cursorPos.X >= 0 {
-			c.buffer.setCell(
-				cursorPos,
-				fromCCCharset(r),
-				colorFromHexDigit(fr),
-				colorFromHexDigit(br),
-			)
-		}
-
-		cursorPos.X += 1
-	}
-
-	c.cursor.position = cursorPos
-}
-
-func (c *Console) Scroll(y int) {
-	c.buffer.scroll(y)
-}
-
-func (c *Console) SetCursorPosition(x, y int) {
-	c.cursor.position.X = x
-	c.cursor.position.Y = y
-}
-
-func (c *Console) SetCursorBlink(blink bool) {
-	c.cursor.blink = blink
-	//c.cursorOn = blink
-}
-
-func (c *Console) SetForegroundColor(index Color) {
-	c.cursor.foreground = index
-}
-
-func (c *Console) SetBackgroundColor(index Color) {
-	c.cursor.background = index
-}
-
-func (c *Console) SetPaletteColor(index Color, r, g, b float32) {
-	c.palette.set(index, color.NRGBA{
-		R: uint8(r * 255.0),
-		G: uint8(g * 255.0),
-		B: uint8(b * 255.0),
-		A: 0xFF,
-	})
+	c.cursor.position = image.Pt(
+		remote.Cursor.X-1,
+		remote.Cursor.Y-1,
+	)
+	c.cursor.blink = remote.Cursor.Blink
 }

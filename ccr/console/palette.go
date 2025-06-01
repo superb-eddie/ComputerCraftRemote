@@ -23,16 +23,20 @@ const (
 	ColorBlack
 )
 
-func colorFromHexDigit(d rune) Color {
-	c := uint(d % 16)
-	if d >= '0' && d <= '9' {
-		c = uint(d - '0')
-	} else if d >= 'A' && d <= 'F' {
-		c = uint(10 + (d - 'A'))
-	} else if d >= 'a' && d <= 'f' {
-		c = uint(10 + (d - 'a'))
+func colorFromHexByte(b byte) Color {
+	c := uint(b % 16)
+	if b >= '0' && b <= '9' {
+		c = uint(b - '0')
+	} else if b >= 'A' && b <= 'F' {
+		c = uint(10 + (b - 'A'))
+	} else if b >= 'a' && b <= 'f' {
+		c = uint(10 + (b - 'a'))
 	}
 	return Color(1 << c)
+}
+
+func colorFromHexDigit(d rune) Color {
+	return colorFromHexByte(byte(d))
 }
 
 func colorIndex(c Color) uint {
@@ -51,12 +55,8 @@ type palette struct {
 	p [16]color.NRGBA
 }
 
-func (p *palette) get(c Color, inverted bool) color.NRGBA {
-	idx := colorIndex(c)
-	if inverted {
-		idx = 15 - idx
-	}
-	return p.p[idx]
+func (p *palette) get(c Color) color.NRGBA {
+	return p.p[colorIndex(c)]
 }
 
 func (p *palette) set(c Color, cc color.NRGBA) {

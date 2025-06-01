@@ -384,38 +384,3 @@ func mkTerminate() CCEvent {
 		"terminate",
 	)
 }
-
-//type Event interface {
-//	_isConsoleEvent()
-//}
-//
-//type isConsoleEvent struct{}
-//
-//func (i isConsoleEvent) _isConsoleEvent() {}
-//
-//type ResizedEvent struct {
-//	isConsoleEvent `json:"-"`
-//	Width          int `json:"width"`
-//	Height         int `json:"height"`
-//}
-//
-//type KeyDownEvent struct {
-//	isConsoleEvent `json:"-"`
-//	Key            Key    `json:"key"`
-//	Held           bool   `json:"held"`
-//	Char           string `json:"char"`
-//}
-//
-//type KeyUpEvent struct {
-//	isConsoleEvent `json:"-"`
-//	Key            Key `json:"key"`
-//}
-//
-//type ClipboardEvent struct {
-//	isConsoleEvent `json:"-"`
-//	Text           string `json:"text"`
-//}
-//
-//type TerminateEvent struct {
-//	isConsoleEvent `json:"-"`
-//}

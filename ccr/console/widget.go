@@ -187,8 +187,8 @@ func (c *Console) Layout(gtx layout.Context, style *widgets.Style) (dimensions l
 		lineOffsetStack := op.Offset(image.Pt(0, line*c.glyphSize.Y)).Push(gtx.Ops)
 		clipStack := clip.Rect(image.Rectangle{Max: lineSize}).Push(gtx.Ops)
 
-		paintLineBackground(gtx, c.glyphSize, lineBackground, c.palette, c.invertColors)
-		paintLineForeground(gtx, c.glyphBuffer, lineText, lineForeground, c.palette, style, c.invertColors)
+		paintLineBackground(gtx, c.glyphSize, lineBackground, c.palette)
+		paintLineForeground(gtx, c.glyphBuffer, lineText, lineForeground, c.palette, style)
 
 		clipStack.Pop()
 		lineOffsetStack.Pop()
@@ -209,7 +209,7 @@ func (c *Console) Layout(gtx layout.Context, style *widgets.Style) (dimensions l
 		offsetStack := op.Offset(cursorLocation).Push(gtx.Ops)
 
 		paint.FillShape(gtx.Ops,
-			c.palette.get(c.cursor.foreground, c.invertColors),
+			c.palette.get(c.cursor.foreground),
 			clip.Rect(image.Rect(
 				0, 0,
 				c.glyphSize.X, cursorHeight,
@@ -239,7 +239,7 @@ func calcScreenSize(cs layout.Constraints, glyphSize image.Point) (charSize, rea
 	)
 }
 
-func paintLineForeground(gtx layout.Context, glyphBuffer []text.Glyph, line []rune, foreground []Color, pal palette, style *widgets.Style, invertedColors bool) {
+func paintLineForeground(gtx layout.Context, glyphBuffer []text.Glyph, line []rune, foreground []Color, pal palette, style *widgets.Style) {
 	lineText := string(line)
 
 	style.Shaper.LayoutString(style.LayoutParameters(gtx), lineText)
@@ -259,7 +259,7 @@ func paintLineForeground(gtx layout.Context, glyphBuffer []text.Glyph, line []ru
 		// Paint vector glyphs
 		path := style.Shaper.Shape(glyphBuffer)
 		outlineOpStack := clip.Outline{Path: path}.Op().Push(gtx.Ops)
-		paint.ColorOp{Color: pal.get(glyphBufferColor, invertedColors)}.Add(gtx.Ops)
+		paint.ColorOp{Color: pal.get(glyphBufferColor)}.Add(gtx.Ops)
 		paint.PaintOp{}.Add(gtx.Ops)
 		outlineOpStack.Pop()
 
@@ -315,11 +315,11 @@ func paintLineForeground(gtx layout.Context, glyphBuffer []text.Glyph, line []ru
 	paintBuffer()
 }
 
-func paintLineBackground(gtx layout.Context, glyphSize image.Point, background []Color, pal palette, invertColors bool) {
+func paintLineBackground(gtx layout.Context, glyphSize image.Point, background []Color, pal palette) {
 	var currentColor Color
 	var currentBounds image.Rectangle
 	paintBlock := func() {
-		paint.FillShape(gtx.Ops, pal.get(currentColor, invertColors), clip.Rect(currentBounds).Op())
+		paint.FillShape(gtx.Ops, pal.get(currentColor), clip.Rect(currentBounds).Op())
 	}
 
 	for i := range background {

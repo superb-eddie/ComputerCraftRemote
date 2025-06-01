@@ -2,11 +2,14 @@ package main
 
 import (
 	"bytes"
+	"compress/zlib"
 	"context"
 	_ "embed"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -29,12 +32,10 @@ import (
 var remoteScript []byte
 
 var debug bool
-var invertColors bool
 var listen string
 
 func init() {
 	flag.BoolVar(&debug, "debug", false, "Print debug messages")
-	flag.BoolVar(&invertColors, "invert-colors", false, "invert palette colors")
 	flag.StringVar(&listen, "listen", ":338", "ip:port to listen on")
 	flag.Parse()
 }
@@ -52,7 +53,7 @@ func main() {
 }
 
 func windowMain(window *app.Window) error {
-	remoteManager := remotes.NewManager(debug, invertColors)
+	remoteManager := remotes.NewManager(debug)
 
 	wg := sync.WaitGroup{}
 	srv := runRemoteListener(&wg, window, remoteManager)
@@ -84,7 +85,7 @@ func runUI(window *app.Window, rm *remotes.Manager) error {
 			gtx := app.NewContext(&ops, e)
 
 			consoleGroup.Layout(gtx, &style, rm)
-			if err := rm.SendQueuedPackets(); err != nil {
+			if err := rm.SendQueuedEvents(); err != nil {
 				return err
 			}
 
@@ -100,27 +101,42 @@ func runRemoteListener(wg *sync.WaitGroup, window *app.Window, rm *remotes.Manag
 		defer rm.CloseRemote(remoteId)
 		defer window.Invalidate()
 
+		var inflator io.Reader
+		var screenUpdate console.ScreenUpdatePacket
 		for {
 			_, packet, err := conn.ReadMessage()
 			if err != nil {
 				return err
 			}
 
-			if debug {
-				fmt.Println(string(packet))
+			packetR := bytes.NewReader(packet)
+			if inflator == nil {
+				inflator, err = zlib.NewReader(packetR)
+			} else {
+				err = inflator.(zlib.Resetter).Reset(packetR, nil)
 			}
-
-			err = rm.WithRemoteConsoleErr(remoteId, func(con *console.Console) error {
-				if err = remotes.HandlePacket(packet, con); err != nil {
-					return err
-				}
-				defer window.Invalidate() // redraw window as soon as we release the console
-
-				return nil
-			})
 			if err != nil {
 				return err
 			}
+
+			packetInflated, err := io.ReadAll(inflator)
+			if err != nil {
+				return err
+			}
+
+			if debug {
+				fmt.Println(string(packetInflated))
+			}
+
+			err = json.Unmarshal(packetInflated, &screenUpdate)
+			if err != nil {
+				return err
+			}
+
+			rm.WithRemoteConsole(remoteId, func(con *console.Console) {
+				con.UpdateFromRemote(screenUpdate)
+				defer window.Invalidate() // redraw window as soon as we release the console
+			})
 		}
 	})
 }

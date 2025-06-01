@@ -1,6 +1,7 @@
 package remotes
 
 import (
+	"encoding/json"
 	"fmt"
 	"sync"
 
@@ -46,9 +47,7 @@ func (r *remoteTab) Layout(gtx layout.Context) layout.Dimensions {
 		dimensions = conn.Layout(gtx, r.style)
 	})
 	if len(events) > 0 {
-		r.rm.QueuePacket(r.id, CCEventBundle{
-			Events: events,
-		})
+		r.rm.QueueEvents(r.id, events)
 	}
 	return dimensions
 }
@@ -62,22 +61,21 @@ func newRemoteId() RemoteId {
 type remote struct {
 	sync.Mutex
 	queuedPackets []any
+	queuedEvents  []console.CCEvent
 	conn          *websocket.Conn
 	console       *console.Console
 }
 
 // Manager "owns" all the consoles, and is the intermediary between the UI and conn goroutines
 type Manager struct {
-	living              map[RemoteId]*remote
-	debug               bool
-	invertColorsDefault bool
+	living map[RemoteId]*remote
+	debug  bool
 }
 
-func NewManager(debug, invertColorsDefault bool) *Manager {
+func NewManager(debug bool) *Manager {
 	return &Manager{
-		living:              map[RemoteId]*remote{},
-		debug:               debug,
-		invertColorsDefault: invertColorsDefault,
+		living: map[RemoteId]*remote{},
+		debug:  debug,
 	}
 }
 
@@ -88,7 +86,7 @@ func (m *Manager) NewRemote(conn *websocket.Conn) RemoteId {
 	id := newRemoteId()
 	m.living[id] = &remote{
 		conn:    conn,
-		console: console.NewConsole(name, m.invertColorsDefault),
+		console: console.NewConsole(name),
 	}
 	return id
 }
@@ -148,7 +146,7 @@ func (m *Manager) WithRemoteConsole(id RemoteId, f func(conn *console.Console)) 
 	f(r.console)
 }
 
-func (m *Manager) QueuePacket(to RemoteId, payload any) {
+func (m *Manager) QueueEvents(to RemoteId, events []console.CCEvent) {
 	r, ok := m.living[to]
 	if !ok {
 		return
@@ -157,50 +155,40 @@ func (m *Manager) QueuePacket(to RemoteId, payload any) {
 	r.Lock()
 	defer r.Unlock()
 
-	r.queuedPackets = append(r.queuedPackets, payload)
+	r.queuedEvents = append(r.queuedEvents, events...)
 }
 
-func (m *Manager) SendQueuedPackets() error {
+func (m *Manager) SendQueuedEvents() error {
 	for _, r := range m.living {
-		if err := m.sendPacketQueue(r); err != nil {
+		if err := m.sendRemotesQueuedEvents(r); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (m *Manager) sendPacketQueue(r *remote) error {
-	if len(r.queuedPackets) == 0 {
+func (m *Manager) sendRemotesQueuedEvents(r *remote) error {
+	if len(r.queuedEvents) == 0 {
 		return nil
 	}
 
 	r.Lock()
 	defer r.Unlock()
 
-	var sent int
-	var err error
-	for i, p := range r.queuedPackets {
-		var raw []byte
-		raw, err = marshalPacket(getRemotePayloadName(p), p)
-		if err != nil {
-			goto errored
-		}
-
-		if m.debug {
-			fmt.Println(string(raw))
-		}
-
-		err = r.conn.WriteMessage(websocket.TextMessage, raw)
-		if err != nil {
-			goto errored
-		}
-
-		sent = i
+	raw, err := json.Marshal(r.queuedEvents)
+	if err != nil {
+		return err
 	}
-	r.queuedPackets = r.queuedPackets[:0]
-	return nil
 
-errored:
-	r.queuedPackets = r.queuedPackets[sent:]
-	return err
+	if m.debug {
+		fmt.Println(string(raw))
+	}
+
+	err = r.conn.WriteMessage(websocket.TextMessage, raw)
+	if err != nil {
+		return err
+	}
+	r.queuedEvents = r.queuedEvents[:]
+
+	return nil
 }
