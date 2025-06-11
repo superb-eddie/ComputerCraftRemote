@@ -188,7 +188,7 @@ func (m *Manager) sendRemotesQueuedEvents(r *remote) error {
 	if err != nil {
 		return err
 	}
-	r.queuedEvents = r.queuedEvents[:]
+	r.queuedEvents = r.queuedEvents[:0]
 
 	return nil
 }

@@ -70,8 +70,8 @@ func (b *buffer) resize(newSize image.Point) {
 
 func (b *buffer) updateFromRemote(remoteBuffer ScreenBuffer) {
 	b.resize(image.Pt(
-		remoteBuffer.Size.X-1,
-		remoteBuffer.Size.Y-1,
+		remoteBuffer.Size.X,
+		remoteBuffer.Size.Y,
 	))
 
 	for y, row := range remoteBuffer.Rows {
