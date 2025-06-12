@@ -14,19 +14,23 @@ deflate = deflate()
 local expect = require("cc.expect")
 local field, range = expect.field, expect.range
 
--- local logFile = fs.open("ccr_remote/debug_log", "w+")
-function log(...)
-    return
---     local msg = ""
---     local args = table.pack(...)
---     for i = 1,args.n do
---         if i ~= 1 then
---             msg = msg .. " "
---         end
---         msg = msg .. tostring(args[i])
---     end
---     logFile.writeLine(msg)
---     logFile.flush()
+local debug = true
+if debug then
+    local logFile = fs.open("ccr_remote/debug_log.txt", "w+")
+    function log(...)
+        local msg = ""
+        local args = table.pack(...)
+        for i = 1,args.n do
+            if i ~= 1 then
+                msg = msg .. " "
+            end
+            msg = msg .. tostring(args[i])
+        end
+        logFile.writeLine(msg)
+        logFile.flush()
+    end
+else
+    function log(...) end
 end
 
 local function mkRow(chars, fg, bg)
@@ -111,18 +115,21 @@ function screenBuffer:resize(newSize, fg, bg)
     self:debugAssertScreenSize()
 end
 
-function screenBuffer:debugAssertScreenSize()
-    return
---     if (#self.rows) ~= self.size.y then
---         error("y borked", 2)
---     end
---
---     for y = 1,self.size.y do
---         r = self.rows[y]
---         if (#r.chars) ~= self.size.x then
---             error(tostring(y) .. " x borked", 2)
---         end
---     end
+if debug then
+    function screenBuffer:debugAssertScreenSize()
+        if (#self.rows) ~= self.size.y then
+            error("y borked", 2)
+        end
+
+        for y = 1,self.size.y do
+            r = self.rows[y]
+            if (#r.chars) ~= self.size.x then
+                error(tostring(y) .. " x borked", 2)
+            end
+        end
+    end
+else
+    function screenBuffer:debugAssertScreenSize() end
 end
 
 function screenBuffer:scroll(y, fg, bg)
@@ -225,6 +232,8 @@ function screenBuffer:clear(fg, bg)
             bg:rep(self.size.x)
         )
     end
+
+    self:debugAssertScreenSize()
 end
 
 function screenBuffer:clearLine(n, fg, bg)
@@ -244,6 +253,8 @@ function screenBuffer:clearLine(n, fg, bg)
         fg:rep(self.size.x),
         bg:rep(self.size.x)
     )
+
+    self:debugAssertScreenSize()
 end
 
 local headlessRedirect = {}

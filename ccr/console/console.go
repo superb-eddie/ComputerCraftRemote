@@ -10,60 +10,6 @@ import (
 	"gioui.org/text"
 )
 
-// cp437 contains the characters that cc borrows from codepage 437 in the order that cc uses them (spacers included for unused chars)
-var cp437 = []rune{' ', '☺', '☻', '♥', '♦', '♣', '♠', '•', '◘', ' ', ' ', '♂', '♀', ' ', '♪', '♫', '►', '◄', '↕', '‼', '¶', '§', '▬', '↨', '↑', '↓', '→', '←', '∟', '↔', '▲', '▼'}
-
-// fromCCCharset maps Computer Craft's character set to Unicode
-func fromCCCharset(char rune) rune {
-	if (char < 0x00) || (char > 0xFF) {
-		return '�' // Not in range
-	}
-
-	// Get the easy cases out of the way
-	switch char {
-	case '\t', '\n', '\r':
-		// These characters aren't rendered
-		return ' '
-	case 0x7F:
-		// DEL in the ascii range. cc renders a shading character
-		return '░'
-	case 0xAD:
-		// Soft hyphen in the latin1 range.
-		// Most fonts don't render it but cc renders it like a typical hyphen
-		return '-'
-	case 0x80:
-		// In the teletext range, but not rendered
-		return ' '
-	case 0x95:
-		// In the teletext range, but it's replaced with a character outside Unicode's sextant blocks
-		return '▌'
-	}
-
-	// Chars borrowed from IBM's code page 437
-	isCP437 := char < 0x20
-	if isCP437 {
-		return cp437[uint(char)]
-	}
-
-	// Chars borrow from teletext
-	isTeletext := (char >= 0x80) && (char < 0xA0)
-	if isTeletext {
-		// We use sextant blocks to emulate these characters.
-		// The blocks are used in the same order they appear in utf8, except for two holes at 0x80 and 0x95
-		// https://www.unicode.org/charts/PDF/U1FB00.pdf
-		offset := 1
-		if char >= 0x95 {
-			offset += 1
-		}
-
-		return '\U0001FB00' + (char - rune(0x80+offset))
-	}
-
-	// If we haven't matched the character by this point, then it should be an
-	//  ascii or latin1 character which uses that same codepoint as Unicode.
-	return char
-}
-
 func popRune(buf []byte) ([]byte, rune) {
 	r, rSize := utf8.DecodeRune(buf)
 	return buf[rSize:], r
