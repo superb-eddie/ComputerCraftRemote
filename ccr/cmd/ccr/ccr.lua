@@ -14,7 +14,7 @@ deflate = deflate()
 local expect = require("cc.expect")
 local field, range = expect.field, expect.range
 
-local debug = true
+local debug = false
 if debug then
     local logFile = fs.open("ccr_remote/debug_log.txt", "w+")
     function log(...)

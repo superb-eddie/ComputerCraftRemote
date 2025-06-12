@@ -3,17 +3,11 @@ package console
 import (
 	"image"
 	"image/color"
-	"unicode/utf8"
 
 	"gioui.org/io/key"
 	"gioui.org/io/pointer"
 	"gioui.org/text"
 )
-
-func popRune(buf []byte) ([]byte, rune) {
-	r, rSize := utf8.DecodeRune(buf)
-	return buf[rSize:], r
-}
 
 type cursor struct {
 	position image.Point
